@@ -33,9 +33,8 @@
     }
     input:focus { border-color: #0071e3; }
     
-    /* 토스 결제 UI 영역 */
-    #payment-method { margin-top: 20px; }
-    #agreement { margin-top: 10px; }
+    #payment-method { margin-top: 20px; min-height: 200px; }
+    #agreement { margin-top: 10px; min-height: 100px; }
 
     .submit-btn {
       width: 100%;
@@ -51,7 +50,11 @@
       transition: background-color 0.2s;
     }
     .submit-btn:hover { background-color: #0052cc; }
-    .submit-btn:disabled { background-color: #b0c4de; cursor: not-allowed; }
+    .submit-btn:disabled { 
+      background-color: #e5e5ea !important; 
+      color: #86868b !important;
+      cursor: not-allowed !important; 
+    }
   </style>
 </head>
 <body>
@@ -63,15 +66,15 @@
     <input type="number" id="amount" value="5000" min="1000" step="1000" placeholder="금액 입력">
   </div>
 
-  <!-- 토스 결제 수단 선택 UI (Apple Pay, 카드 등 자동 렌더링) -->
-  <div id="payment-method"></div>
+  <!-- 토스 결제 수단 선택 UI 영역 -->
+  <div id="payment-method">결제 모듈 로딩 중...</div>
   <div id="agreement"></div>
 
   <button id="payment-button" class="submit-btn" disabled>후원 결제하기</button>
 
   <script>
-    // 토스페이먼츠 클라이언트 키 (테스트용)
-    const clientKey = "test_ck_D5148x91811e5m40A0a349R12482"; 
+    // 토스페이먼츠 공식 샘플/테스트용 개발자 클라이언트 키
+    const clientKey = "test_gck_docs_Ovk5rk1E802x05l2mg03n4W1"; 
     const customerKey = "USER_" + Math.random().toString(36).substring(2, 10);
 
     let widgets = null;
@@ -81,47 +84,58 @@
       const amountInput = document.getElementById("amount");
       const paymentButton = document.getElementById("payment-button");
 
-      // 1. 토스 위젯 초기화
-      const tossPayments = TossPayments(clientKey);
-      widgets = tossPayments.widgets({ customerKey });
+      try {
+        // 1. 토스 SDK 초기화
+        const tossPayments = TossPayments(clientKey);
+        widgets = tossPayments.widgets({ customerKey });
 
-      // 2. 초기 결제 금액 설정 및 위젯 렌더링
-      await widgets.setAmount({
-        currency: "KRW",
-        value: currentAmount,
-      });
+        // 2. 결제 금액 세팅
+        await widgets.setAmount({
+          currency: "KRW",
+          value: currentAmount,
+        });
 
-      // 결제수단 UI (Apple Pay 버튼 포함) 및 약관 동의 UI 렌더링
-      await Promise.all([
-        widgets.renderPaymentMethods({
+        // 3. 결제 수단 UI & 약관 동의 UI 렌더링
+        await widgets.renderPaymentMethods({
           selector: "#payment-method",
           variantKey: "DEFAULT",
-        }),
-        widgets.renderAgreement({
+        });
+
+        await widgets.renderAgreement({
           selector: "#agreement",
           variantKey: "AGREEMENT",
-        }),
-      ]);
+        });
 
-      // 위젯 렌더링 완료 후 버튼 활성화
-      paymentButton.disabled = false;
+        // 4. 로딩 완료 후 버튼 활성화
+        paymentButton.disabled = false;
+        paymentButton.innerText = `${currentAmount.toLocaleString()}원 후원 결제하기`;
 
-      // 3. 금액 변경 시 토스 위젯 금액 실시간 업데이트
-      amountInput.addEventListener("change", async (e) => {
+      } catch (error) {
+        console.error("토스 결제위젯 로딩 에러:", error);
+        document.getElementById("payment-method").innerHTML = 
+          `<p style="color:red; font-size:14px;">결제 모듈을 불러오지 못했습니다.<br>(${error.message || '인증 오류'})</p>`;
+      }
+
+      // 금액 입력 변경 시 실시간 반영
+      amountInput.addEventListener("input", async (e) => {
         const val = Number(e.target.value);
         if (val >= 1000) {
           currentAmount = val;
-          await widgets.setAmount({
-            currency: "KRW",
-            value: currentAmount,
-          });
+          paymentButton.innerText = `${currentAmount.toLocaleString()}원 후원 결제하기`;
+          if (widgets) {
+            await widgets.setAmount({
+              currency: "KRW",
+              value: currentAmount,
+            });
+          }
         }
       });
 
-      // 4. 결제하기 버튼 클릭
+      // 버튼 클릭 이벤트
       paymentButton.addEventListener("click", async () => {
+        if (!widgets) return;
+
         try {
-          // 토스 결제창 호출 (Apple Pay 선택 시 Face ID / Touch ID 호출됨)
           await widgets.requestPayment({
             orderId: "ORDER_" + Math.random().toString(36).substring(2, 12),
             orderName: "NFC Card Reader 프로젝트 후원",
@@ -135,19 +149,16 @@
         }
       });
 
-      // 5. 결제 후 돌아왔을 때 성공/실패 팝업 처리
+      // 결제 결과 URL 확인
       checkPaymentResult();
     });
 
-    // 성공/실패 URL 파라미터 감지 후 감사 팝업창 띄우기
     function checkPaymentResult() {
       const urlParams = new URLSearchParams(window.location.search);
       const status = urlParams.get("status");
 
       if (status === "success") {
-        const amount = urlParams.get("amount") || currentAmount;
-        alert(`🎉 후원해 주셔서 진심으로 감사드립니다!\n\n결제 승인 금액: ${Number(amount).toLocaleString()}원`);
-        // URL 정리
+        alert("🎉 후원해 주셔서 진심으로 감사드립니다!\n\n결제가 성공적으로 완료되었습니다.");
         window.history.replaceState({}, document.title, window.location.pathname);
       } else if (status === "fail") {
         const message = urlParams.get("message") || "결제가 취소되었거나 실패했습니다.";
