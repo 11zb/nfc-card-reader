@@ -18,14 +18,16 @@
       background-color: #f5f5f7;
       border-radius: 16px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      position: relative;
     }
     h2 { margin-top: 0; color: #1d1d1f; font-size: 22px; }
-    .input-group { margin: 20px 0; }
-    label { display: block; font-size: 14px; color: #6e6e73; margin-bottom: 8px; font-weight: 500; }
+    
+    .input-group { margin: 16px 0; }
+    label { display: block; font-size: 14px; color: #6e6e73; margin-bottom: 6px; font-weight: 500; }
     input {
       width: 100%;
-      padding: 14px;
-      font-size: 18px;
+      padding: 12px 14px;
+      font-size: 16px;
       border: 1px solid #d2d2d7;
       border-radius: 10px;
       outline: none;
@@ -33,8 +35,8 @@
     }
     input:focus { border-color: #0071e3; }
     
-    #payment-method { margin-top: 20px; min-height: 200px; }
-    #agreement { margin-top: 10px; min-height: 100px; }
+    #payment-method { margin-top: 20px; min-height: 180px; }
+    #agreement { margin-top: 10px; }
 
     .submit-btn {
       width: 100%;
@@ -55,12 +57,60 @@
       color: #86868b !important;
       cursor: not-allowed !important; 
     }
+
+    /* 감사 창 (모달 스타일) */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-card {
+      background: #ffffff;
+      padding: 32px 24px;
+      border-radius: 20px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: popIn 0.3s ease-out;
+    }
+    .modal-icon { font-size: 48px; margin-bottom: 12px; }
+    .modal-title { font-size: 20px; font-weight: 700; color: #1d1d1f; margin-bottom: 8px; }
+    .modal-desc { font-size: 15px; color: #515154; line-height: 1.5; margin-bottom: 24px; }
+    .modal-close-btn {
+      width: 100%;
+      padding: 12px;
+      background: #f2f2f7;
+      color: #0071e3;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
   </style>
 </head>
 <body>
 
   <h2>프로젝트 후원하기</h2>
   
+  <!-- 닉네임 / 이름 입력 필드 -->
+  <div class="input-group">
+    <label for="nickname">후원자 이름 / 닉네임</label>
+    <input type="text" id="nickname" placeholder="닉네임을 입력해주세요" value="익명 후원자">
+  </div>
+
+  <!-- 후원 금액 입력 필드 -->
   <div class="input-group">
     <label for="amount">후원할 금액 (KRW)</label>
     <input type="number" id="amount" value="5000" min="1000" step="1000" placeholder="금액 입력">
@@ -72,30 +122,40 @@
 
   <button id="payment-button" class="submit-btn" disabled>로딩 중...</button>
 
+  <!-- 결제 완료 감사 모달 레이어 -->
+  <div id="thanks-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-icon">🎉</div>
+      <div class="modal-title" id="modal-user-name">후원해 주셔서 감사합니다!</div>
+      <div class="modal-desc">
+        전달해 주신 마음은 NFC Card Reader 프로젝트 개발에 큰 힘이 됩니다.
+      </div>
+      <button class="modal-close-btn" onclick="closeModal()">확인</button>
+    </div>
+  </div>
+
   <script>
-    // 토스페이먼츠 공식 문서용 공식 테스트 키 적용 완료
     const clientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm"; 
     const customerKey = "USER_" + Math.random().toString(36).substring(2, 10);
+    const discordWebhookUrl = "https://discord.com/api/webhooks/1533835863476277409/ElYXaRFwnxy4MSjLTeeplY8fJr6qQvj1QJMzNnLxArGIrBhJx6pRlsbbtcCo84h3vzrc";
 
     let widgets = null;
     let currentAmount = 5000;
 
     document.addEventListener("DOMContentLoaded", async () => {
       const amountInput = document.getElementById("amount");
+      const nicknameInput = document.getElementById("nickname");
       const paymentButton = document.getElementById("payment-button");
 
       try {
-        // 1. SDK 초기화
         const tossPayments = TossPayments(clientKey);
         widgets = tossPayments.widgets({ customerKey });
 
-        // 2. 금액 설정
         await widgets.setAmount({
           currency: "KRW",
           value: currentAmount,
         });
 
-        // 3. 결제 UI & 약관 UI 렌더링
         await Promise.all([
           widgets.renderPaymentMethods({
             selector: "#payment-method",
@@ -107,17 +167,13 @@
           }),
         ]);
 
-        // 4. 로딩 완료 시 버튼 활성화
         paymentButton.disabled = false;
         paymentButton.innerText = `${currentAmount.toLocaleString()}원 후원 결제하기`;
 
       } catch (error) {
         console.error("위젯 초기화 에러:", error);
-        document.getElementById("payment-method").innerHTML = 
-          `<p style="color:red; font-size:14px;">결제 모듈을 불러오지 못했습니다.<br>(${error.message})</p>`;
       }
 
-      // 금액 입력 변경 시 실시간 반영
       amountInput.addEventListener("input", async (e) => {
         const val = Number(e.target.value);
         if (val >= 1000) {
@@ -132,15 +188,18 @@
         }
       });
 
-      // 결제 버튼 클릭시 결제창 팝업
+      // 후원 결제 요청
       paymentButton.addEventListener("click", async () => {
         if (!widgets) return;
+
+        const nickname = nicknameInput.value.trim() || "익명 후원자";
 
         try {
           await widgets.requestPayment({
             orderId: "ORDER_" + Math.random().toString(36).substring(2, 12),
             orderName: "NFC Card Reader 프로젝트 후원",
-            successUrl: window.location.origin + window.location.pathname + "?status=success",
+            customerName: nickname,
+            successUrl: window.location.origin + window.location.pathname + `?status=success&name=${encodeURIComponent(nickname)}`,
             failUrl: window.location.origin + window.location.pathname + "?status=fail",
           });
         } catch (error) {
@@ -153,19 +212,62 @@
       checkPaymentResult();
     });
 
-    // 결제 리다이렉트 후 감사 팝업
-    function checkPaymentResult() {
+    // 결제 결과 처리 및 디스코드 웹훅 전송
+    async function checkPaymentResult() {
       const urlParams = new URLSearchParams(window.location.search);
       const status = urlParams.get("status");
 
       if (status === "success") {
-        alert("🎉 후원해 주셔서 진심으로 감사드립니다!\n\n결제가 성공적으로 요청되었습니다.");
+        const userName = urlParams.get("name") || "익명 후원자";
+        const orderId = urlParams.get("orderId") || "N/A";
+        const amount = urlParams.get("amount") || currentAmount;
+
+        // 1. 디스코드 알림 메시지 전송
+        sendDiscordWebhook(userName, amount, orderId);
+
+        // 2. 감사 모달 창 띄우기
+        document.getElementById("modal-user-name").innerText = `${userName}님, 진심으로 감사드립니다!`;
+        document.getElementById("thanks-modal").style.display = "flex";
+        
+        // URL 정리
         window.history.replaceState({}, document.title, window.location.pathname);
       } else if (status === "fail") {
         const message = urlParams.get("message") || "결제가 취소되었습니다.";
         alert(`❌ 결제 취소/실패: ${message}`);
         window.history.replaceState({}, document.title, window.location.pathname);
       }
+    }
+
+    // 디스코드 웹훅 전송 함수
+    function sendDiscordWebhook(name, amount, orderId) {
+      const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+      const formattedAmount = Number(amount).toLocaleString();
+
+      const payload = {
+        embeds: [
+          {
+            title: "🎉 새로운 후원이 접수되었습니다!",
+            color: 5814783, // 토스 블루 색상 (#5865F2)
+            fields: [
+              { name: "👤 후원자 닉네임", value: name, inline: true },
+              { name: "💰 후원 금액", value: `${formattedAmount} 원`, inline: true },
+              { name: "🆔 주문 번호", value: orderId, inline: false },
+              { name: "⏰ 결제 일시", value: now, inline: false }
+            ],
+            footer: { text: "NFC Card Reader 후원 시스템" }
+          }
+        ]
+      };
+
+      fetch(discordWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).catch(err => console.error("디스코드 웹훅 전송 실패:", err));
+    }
+
+    function closeModal() {
+      document.getElementById("thanks-modal").style.display = "none";
     }
   </script>
 </body>
