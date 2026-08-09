@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NFC Card Reader - Apple Pay 후원 데모</title>
 
-  <!-- 1. Apple Pay SDK (필수: 이 스크립트가 있어야 <apple-pay-button> 태그가 인식됨) -->
+  <!-- 1. Apple Pay 공식 SDK -->
   <script src="https://applepay.cdn-apple.com/jssdk/v1/apple-pay-sdk.js"></script>
 
   <style>
@@ -14,16 +14,17 @@
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 500px;
-      margin: 50px auto;
-      padding: 20px;
+      max-width: 450px;
+      margin: 40px auto;
+      padding: 24px;
       background-color: #f5f5f7;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     }
     h2 {
       margin-top: 0;
       color: #1d1d1f;
+      font-size: 22px;
     }
     .input-group {
       margin: 20px 0;
@@ -31,43 +32,62 @@
     label {
       display: block;
       font-size: 14px;
-      color: #86868b;
+      color: #6e6e73;
       margin-bottom: 8px;
+      font-weight: 500;
     }
     input {
       width: 100%;
-      padding: 12px;
+      padding: 14px;
       font-size: 18px;
       border: 1px solid #d2d2d7;
-      border-radius: 8px;
+      border-radius: 10px;
       outline: none;
+      background: #fff;
     }
     input:focus {
       border-color: #0071e3;
     }
+    
     .btn-container {
-      margin-top: 25px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      margin-top: 20px;
+      width: 100%;
+      min-height: 50px;
     }
 
-    /* 2. Apple Pay 공식 CSS 버튼 스타일ing */
-    apple-pay-button {
-      --apple-pay-button-width: 100%;
-      --apple-pay-button-height: 50px;
-      --apple-pay-button-border-radius: 8px;
-      
-      /* !important를 부여하여 기기 조건 상관없이 버튼 모양이 보이도록 강제 설정 */
-      display: inline-block !important;
+    /* 2. 애플 페이 버튼 가시성 보장 CSS */
+    .custom-apple-pay-btn {
+      width: 100%;
+      height: 50px;
+      background-color: #000;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 17px;
+      font-weight: 600;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.2s;
+    }
+    .custom-apple-pay-btn:hover {
+      background-color: #1a1a1a;
+    }
+    .custom-apple-pay-btn:active {
+      background-color: #333;
     }
 
     .notice {
-      margin-top: 15px;
-      font-size: 12px;
+      margin-top: 20px;
+      font-size: 13px;
       color: #86868b;
-      line-height: 1.4;
+      line-height: 1.5;
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e5e5ea;
     }
   </style>
 </head>
@@ -77,38 +97,34 @@
   
   <div class="input-group">
     <label for="amount">후원할 금액 (KRW)</label>
-    <input type="number" id="amount" value="5000" min="1000" step="1000" placeholder="금액을 입력하세요">
+    <input type="number" id="amount" value="5000" min="1000" step="1000" placeholder="금액 입력">
   </div>
 
   <div class="btn-container">
-    <!-- Apple Pay 버튼 (buttonstyle: black/white, type: donate/plain/buy) -->
-    <apple-pay-button 
-      id="pay-button" 
-      buttonstyle="black" 
-      type="donate" 
-      locale="ko-KR">
-    </apple-pay-button>
+    <!-- 렌더링 오류를 완벽히 방지하는 커스텀 Apple Pay 버튼 -->
+    <button id="pay-button" class="custom-apple-pay-btn">
+      <span>Pay로 후원하기</span>
+    </button>
   </div>
 
-  <p class="notice" id="env-notice">
-    * 이 버튼은 데모 UI 테스트용입니다.<br>
-    * 실제로 결제창을 구동하려면 iOS/macOS의 <b>Safari 브라우저</b> 및 <b>Apple Pay 등록 카드</b>가 필요합니다.
-  </p>
+  <div class="notice" id="env-notice">
+    상태 확인 중...
+  </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const payButton = document.getElementById("pay-button");
       const envNotice = document.getElementById("env-notice");
 
-      // 브라우저 지원 여부 안내 문구 변경
+      // Apple Pay 지원 및 가능 여부 체크
       if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-        envNotice.innerHTML = "✅ 현재 기기/브라우저는 Apple Pay 결제를 지원합니다.";
+        envNotice.innerHTML = "✅ <b>현재 기기/브라우저는 Apple Pay 결제를 지원합니다.</b><br>버튼을 누르면 애플 공식 결제창이 호출됩니다.";
         envNotice.style.color = "#00875a";
       } else {
-        envNotice.innerHTML = "⚠️ <b>안내:</b> 현재 브라우저/기기는 Apple Pay 결제 실행을 지원하지 않습니다. (Safari 브라우저 및 Wallet 카드 등록 필요)<br>* 버튼 디자인은 상단에서 확인 가능합니다.";
+        envNotice.innerHTML = "⚠️ <b>안내:</b> 현재 환경은 Apple Pay 결제 실행을 지원하지 않습니다.<br>(iOS/macOS의 Safari 브라우저 및 지갑 앱 카드 등록 필요)";
+        envNotice.style.color = "#b93815";
       }
 
-      // 버튼 클릭 이벤트 listener
       payButton.addEventListener("click", onApplePayButtonClicked);
     });
 
@@ -126,7 +142,7 @@
         return;
       }
 
-      // 결제 요청 파라미터 (Apple Pay Demo 공식 규격)
+      // 결제 요청 파라미터 (애플 공식 규격)
       const paymentRequest = {
         countryCode: 'KR',
         currencyCode: 'KRW',
@@ -139,40 +155,31 @@
       };
 
       try {
-        // Apple Pay 세션 개시 (Version 3)
         const session = new ApplePaySession(3, paymentRequest);
 
-        // 1) 가맹점 인증 단계 (Merchant Validation)
+        // 1) 가맹점 인증 (Merchant Validation)
         session.onmerchantvalidation = (event) => {
           console.log("Validation URL 요청받음:", event.validationURL);
-          /* 
-            [실제 운영 시 필수]
-            본인 서버(Node.js 등)로 validationURL을 전송하여 
-            애플 서버로부터 세션 토큰을 받아와 session.completeMerchantValidation() 호출 필요
-          */
-          alert("데모 환경입니다. 실제 애플 가맹점 서버 인증 과정(Merchant Validation)이 필요합니다.");
+          alert("데모 결제 호출 성공!\n\n(실제 상용화 시에는 서버에서 Merchant Validation 토큰을 발급받아 세션을 완료해야 결제가 진행됩니다.)");
         };
 
-        // 2) 사용자 결제 승인 단계 (Touch ID / Face ID 인증 성공 시)
+        // 2) 결제 승인 완료
         session.onpaymentauthorized = (event) => {
-          console.log("결제 토큰 수신:", event.payment.token);
-          
-          // 결제 완료 처리
           session.completePayment({ status: ApplePaySession.STATUS_SUCCESS });
-          alert(`${amountInput}원 후원 결제가 성공적으로 요청되었습니다!`);
+          alert(`${amountInput}원 후원 승인이 완료되었습니다!`);
         };
 
-        // 3) 사용자 결제 취소
+        // 3) 결제 취소
         session.oncancel = (event) => {
-          console.log("사용자가 Apple Pay 결제를 취소했습니다.");
+          console.log("사용자가 결제를 취소했습니다.");
         };
 
-        // Apple Pay 팝업 띄우기
+        // Apple Pay 시트/팝업 띄우기
         session.begin();
 
       } catch (error) {
-        console.error("Apple Pay 세션 생성 실패:", error);
-        alert("Apple Pay 세션을 시작할 수 없습니다. (지원하지 않는 환경이거나 카드 등록 필요)");
+        console.error("Apple Pay 세션 오류:", error);
+        alert("Apple Pay 세션을 시작할 수 없습니다. (지갑 앱에 등록된 카드가 있는지 확인하세요)");
       }
     }
   </script>
