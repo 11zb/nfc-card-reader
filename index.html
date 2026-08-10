@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NFC Card Reader - 후원하기</title>
 
-  <!-- 토스페이먼츠 SDK v2 (위젯용) 및 v1 (독립 가상계좌용) -->
+  <!-- 토스페이먼츠 최신 SDK v2 (단일 로드로 충돌 해결) -->
   <script src="https://js.tosspayments.com/v2/standard"></script>
-  <script src="https://js.tosspayments.com/v1/payment"></script>
 
   <style>
     * { box-sizing: border-box; }
@@ -141,11 +140,11 @@
     <input type="number" id="amount" value="5000" min="1000" step="1000" placeholder="금액 입력">
   </div>
 
-  <!-- 3. 기존 토스 결제위젯 영역 -->
+  <!-- 3. 토스 결제위젯 영역 -->
   <div id="payment-method"></div>
   <div id="agreement"></div>
 
-  <!-- 4. 결제 버튼 그룹 (위젯 결제 / 독립 가상계좌 결제) -->
+  <!-- 4. 결제 버튼 그룹 -->
   <div class="btn-group">
     <button id="payment-button" class="submit-btn" disabled>로딩 중...</button>
     <button id="vaccount-button" type="button" class="vaccount-btn">🏦 가상계좌로 후원하기</button>
@@ -164,16 +163,13 @@
   </div>
 
   <script>
-    // 토스페이먼츠 테스트 키세팅
-    const widgetClientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm"; // 위젯용 키
-    const standardClientKey = "test_ck_D5148x91811e5m40A0a349R12482"; // 표준결제창 키
+    // 작동이 검증된 토스 v2 키 세팅
+    const clientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm"; 
     const customerKey = "USER_" + Math.random().toString(36).substring(2, 10);
     const discordWebhookUrl = "https://discord.com/api/webhooks/1533835863476277409/ElYXaRFwnxy4MSjLTeeplY8fJr6qQvj1QJMzNnLxArGIrBhJx6pRlsbbtcCo84h3vzrc";
 
-    // SDK 객체 초기화
-    const tossPaymentsWidget = TossPayments(widgetClientKey);
-    const tossPaymentsStandard = TossPayments(standardClientKey);
-    const widgets = tossPaymentsWidget.widgets({ customerKey });
+    const tossPayments = TossPayments(clientKey);
+    const widgets = tossPayments.widgets({ customerKey });
     
     let currentAmount = 5000;
 
@@ -194,7 +190,7 @@
         console.error("위젯 로딩 실패:", e);
       }
 
-      // 금액 변경 시 위젯 동기화
+      // 금액 변경 시 위젯 금액 업데이트
       amountInput.addEventListener("input", async (e) => {
         const val = Number(e.target.value);
         if (val >= 1000) {
@@ -215,7 +211,7 @@
 
       const cleanUrl = window.location.origin + window.location.pathname;
 
-      // 1. 위젯 결제하기 버튼 클릭
+      // 1. 위젯 결제하기 (카드/간편결제)
       paymentButton.addEventListener("click", async () => {
         const nickname = nicknameInput.value.trim() || "익명 후원자";
 
@@ -234,8 +230,8 @@
         }
       });
 
-      // 2. [가상계좌로 후원하기] 별도 버튼 클릭
-      vaccountButton.addEventListener("click", () => {
+      // 2. 가상계좌 전용 버튼 (v2 API 직접 지정 호출)
+      vaccountButton.addEventListener("click", async () => {
         const nickname = nicknameInput.value.trim() || "익명 후원자";
         const amount = Number(amountInput.value);
 
@@ -244,25 +240,31 @@
           return;
         }
 
-        // 별도의 가상계좌 창 직접 호출
-        tossPaymentsStandard.requestPayment('가상계좌', {
-          amount: amount,
-          orderId: "ORDER_VAC_" + Date.now(),
-          orderName: "NFC Card Reader 프로젝트 후원 (가상계좌)",
-          customerName: nickname,
-          successUrl: cleanUrl + `?status=success&name=${encodeURIComponent(nickname)}&type=VACCOUNT`,
-          failUrl: cleanUrl + "?status=fail"
-        }).catch(function (error) {
+        try {
+          // v2 SDK 방식에 맞춘 가상계좌 직접 결제 요청
+          await tossPayments.requestPayment({
+            method: "VIRTUAL_ACCOUNT",
+            amount: { currency: "KRW", value: amount },
+            orderId: "ORDER_VAC_" + Date.now(),
+            orderName: "NFC Card Reader 프로젝트 후원 (가상계좌)",
+            customerName: nickname,
+            successUrl: cleanUrl + `?status=success&name=${encodeURIComponent(nickname)}&type=VACCOUNT`,
+            failUrl: cleanUrl + "?status=fail",
+            virtualAccount: {
+              accountExpiryHours: 24, // 계좌 만료 시간
+            }
+          });
+        } catch (error) {
           if (error.code !== 'USER_CANCEL') {
-            alert("가상계좌 창 에러: " + error.message);
+            alert("가상계좌 결제 에러: " + error.message);
           }
-        });
+        }
       });
 
       checkPaymentResult();
     });
 
-    // 결제 성공 및 가상계좌 처리
+    // 결제 결과 수신 및 디스코드 웹훅 알림
     function checkPaymentResult() {
       const urlParams = new URLSearchParams(window.location.search);
       const status = urlParams.get("status");
@@ -274,18 +276,16 @@
         const type = urlParams.get("type");
 
         if (type === "VACCOUNT") {
-          // 별도 가상계좌 버튼으로 신청한 경우
           document.getElementById("modal-icon").innerText = "🏦";
           document.getElementById("modal-user-name").innerText = `${userName}님, 가상계좌가 발급되었습니다!`;
           document.getElementById("modal-message").innerHTML = `
-            가상계좌 발급이 성공적으로 처리되었습니다.<br><br>
+            가상계좌 발급이 성공적으로 완료되었습니다.<br><br>
             <b>후원 금액:</b> ${Number(amount).toLocaleString()}원<br>
             <b>주문 번호:</b> ${orderId}<br><br>
-            선택하신 은행의 가상계좌로 입금을 완료해 주시면 후원이 최종 완료됩니다.
+            발급된 안내창의 가상계좌로 입금을 진행해 주시면 후원이 최종 처리됩니다.
           `;
-          sendDiscordWebhook(userName, amount, orderId, "가상계좌 신청 완료");
+          sendDiscordWebhook(userName, amount, orderId, "가상계좌 발급 완료");
         } else {
-          // 위젯을 통한 결제 완료
           document.getElementById("modal-icon").innerText = "🎉";
           document.getElementById("modal-user-name").innerText = `${userName}님, 진심으로 감사드립니다!`;
           document.getElementById("modal-message").innerHTML = `
@@ -305,7 +305,6 @@
       }
     }
 
-    // 디스코드 웹훅 알림 전송
     function sendDiscordWebhook(name, amount, orderId, payType) {
       const now = new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
       const formattedAmount = Number(amount).toLocaleString();
