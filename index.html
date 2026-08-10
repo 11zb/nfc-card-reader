@@ -163,12 +163,16 @@
   </div>
 
   <script>
-    const clientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm"; 
+    // 1. 위젯용 연동키 (gck)
+    const widgetClientKey = "test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm"; 
+    // 2. API 개별 연동키 (ck) - 독립 결제창용
+    const standardClientKey = "test_ck_D5148x91811e5m40A0a349R12482"; 
+
     const customerKey = "USER_" + Math.random().toString(36).substring(2, 10);
     const discordWebhookUrl = "https://discord.com/api/webhooks/1533835863476277409/ElYXaRFwnxy4MSjLTeeplY8fJr6qQvj1QJMzNnLxArGIrBhJx6pRlsbbtcCo84h3vzrc";
 
-    let tossPayments = null;
     let widgets = null;
+    let standardPayment = null;
     let currentAmount = 5000;
 
     async function initWidget() {
@@ -176,9 +180,13 @@
       const paymentButton = document.getElementById("payment-button");
 
       try {
-        // SDK 객체 생성 및 위젯 초기화
-        tossPayments = TossPayments(clientKey);
-        widgets = tossPayments.widgets({ customerKey });
+        // 위젯은 widgetClientKey(gck) 사용
+        const widgetToss = TossPayments(widgetClientKey);
+        widgets = widgetToss.widgets({ customerKey });
+
+        // 개별 결제창은 standardClientKey(ck) 사용
+        const standardToss = TossPayments(standardClientKey);
+        standardPayment = standardToss.payment({ customerKey });
 
         await widgets.setAmount({ currency: "KRW", value: currentAmount });
         await Promise.all([
@@ -189,7 +197,7 @@
         paymentButton.disabled = false;
         paymentButton.innerText = `${currentAmount.toLocaleString()}원 후원 결제하기`;
       } catch (e) {
-        console.error("위젯 로딩 실패:", e);
+        console.error("SDK 초기화 실패:", e);
       }
 
       // 금액 입력 이벤트
@@ -215,7 +223,7 @@
 
       const cleanUrl = window.location.origin + window.location.pathname;
 
-      // 1. 위젯 결제하기 클릭
+      // 1. 위젯 결제하기 클릭 (gck 위젯 사용)
       paymentButton.addEventListener("click", async () => {
         if (!widgets) return;
         const nickname = nicknameInput.value.trim() || "익명 후원자";
@@ -235,9 +243,9 @@
         }
       });
 
-      // 2. 가상계좌 클릭 시에만 인스턴스를 동적으로 생성하여 호출 (로딩 지연 해결)
+      // 2. 가상계좌 클릭 (ck 개별 결제창 사용)
       vaccountButton.addEventListener("click", async () => {
-        if (!tossPayments) return;
+        if (!standardPayment) return;
         const nickname = nicknameInput.value.trim() || "익명 후원자";
         const amount = Number(amountInput.value);
 
@@ -247,8 +255,7 @@
         }
 
         try {
-          const payment = tossPayments.payment({ customerKey });
-          await payment.requestPayment({
+          await standardPayment.requestPayment({
             method: "VIRTUAL_ACCOUNT",
             amount: { currency: "KRW", value: amount },
             orderId: "ORDER_VAC_" + Date.now(),
