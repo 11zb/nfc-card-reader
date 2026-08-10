@@ -223,7 +223,7 @@
 
       const cleanUrl = window.location.origin + window.location.pathname;
 
-      // 1. 위젯 결제하기 클릭 (gck 위젯 사용)
+      // 1. 위젯 결제하기 클릭
       paymentButton.addEventListener("click", async () => {
         if (!widgets) return;
         const nickname = nicknameInput.value.trim() || "익명 후원자";
@@ -243,7 +243,7 @@
         }
       });
 
-      // 2. 가상계좌 클릭 (ck 개별 결제창 사용)
+      // 2. 가상계좌 클릭 (올바른 규격 적용)
       vaccountButton.addEventListener("click", async () => {
         if (!standardPayment) return;
         const nickname = nicknameInput.value.trim() || "익명 후원자";
@@ -262,10 +262,7 @@
             orderName: "NFC Card Reader 프로젝트 후원 (가상계좌)",
             customerName: nickname,
             successUrl: cleanUrl + `?status=success&name=${encodeURIComponent(nickname)}&type=VACCOUNT`,
-            failUrl: cleanUrl + "?status=fail",
-            virtualAccount: {
-              accountExpiryHours: 24,
-            }
+            failUrl: cleanUrl + "?status=fail"
           });
         } catch (error) {
           if (error.code !== 'USER_CANCEL') {
