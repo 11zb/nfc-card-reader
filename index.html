@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <!-- 모바일 더블 탭 확대 방지 -->
+  <!-- 모바일 더블 탭 자동 확대 방지 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>iPhone 계산기</title>
 
@@ -120,7 +120,7 @@
   </div>
 
   <script>
-    // --- 계산기 관련 상태 변수 ---
+    // --- 계산기 상태 변수 ---
     let currentInput = '0';
     let previousInput = null;
     let selectedOperator = null;
@@ -129,13 +129,11 @@
     const displayElement = document.getElementById('display');
     const clearBtn = document.getElementById('btn-clear');
 
-    // --- 토스페이먼츠 공식 테스트 환경 정보 ---
-    // 토스 개발자 센터 공식 테스트용 Client Key
+    // 토스페이먼츠 공식 테스트용 클라이언트 키
     const clientKey = "test_ck_D5148x91811e5m40A0a349R12482";
-    // 영문, 숫자, 특수문자(-_=.@)로 구성된 사용자 고유키
-    const customerKey = "TEST_USER_KEY_" + Math.floor(Math.random() * 100000);
+    const customerKey = "USER_" + Math.floor(Math.random() * 1000000);
 
-    // 페이지 로드 시 결제 승인 완료 리다이렉트 처리
+    // 페이지 로드 시 결제 성공 여부 확인
     window.addEventListener('load', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const isSuccess = urlParams.get('paymentSuccess');
@@ -144,7 +142,6 @@
       if (isSuccess === 'true' && savedResult !== null) {
         currentInput = savedResult;
         localStorage.removeItem('calc_result');
-        // 주소창의 쿼리 파라미터 정리
         window.history.replaceState({}, document.title, window.location.pathname);
         updateDisplay();
       }
@@ -246,49 +243,47 @@
       document.querySelectorAll('.operator').forEach(btn => btn.classList.remove('active'));
     }
 
-    // '=' 버튼 클릭 시 호출
+    // '=' 버튼 눌렀을 때 토스 결제창 호출
     async function onEqualPressed() {
       if (!selectedOperator || previousInput === null) return;
 
-      // 1. 결과값 미리 계산 후 로컬스토리지 저장
+      // 1. 계산 결과 미리 저장
       const pendingResult = calculateInternal();
       localStorage.setItem('calc_result', pendingResult);
       clearActiveOperators();
 
-      // 2. 토스페이먼츠 공식 v2 규격 결제창 호출
+      // 2. 토스페이먼츠 v2 객체 생성 (new 키워드 필수 사용)
       try {
         if (typeof TossPayments === 'undefined') {
-          alert("토스 SDK 로드 중입니다. 잠시 후 다시 시도해 주세요.");
+          alert('토스 SDK 로드 실패. 인터넷 접속을 확인하세요.');
           return;
         }
 
-        // 토스페이먼츠 객체 생성
-        const tossPayments = TossPayments(clientKey);
-        // 결제 인스턴스 생성
-        const payment = tossPayments.payment({ customerKey });
+        // v2 표준 규격: new 키워드로 생성
+        const tossPayments = new TossPayments(clientKey);
+        const payment = tossPayments.payment({ customerKey: customerKey });
 
-        const currentUrl = window.location.href.split('?')[0];
-        const randomOrderId = "ORDER_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+        // 성공/실패 URL (절대 경로 생성)
+        const baseUrl = window.location.origin + window.location.pathname;
+        const randomOrderId = "ORDER_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
 
-        // 공식 문서 규격: requestPayment의 인자로 paymentMethod와 필수 정보를 전송
+        // 결제창 호출
         await payment.requestPayment({
-          method: "CARD", // 카드 결제
+          method: "CARD",
           amount: {
             currency: "KRW",
-            value: 999000,
+            value: 999000
           },
           orderId: randomOrderId,
           orderName: "계산 결과 열람 권한 (999,000원)",
-          successUrl: currentUrl + "?paymentSuccess=true",
-          failUrl: currentUrl + "?paymentSuccess=false",
-          customerEmail: "customer@example.com",
-          customerName: "홍길동",
+          successUrl: baseUrl + "?paymentSuccess=true",
+          failUrl: baseUrl + "?paymentSuccess=false"
         });
 
       } catch (error) {
         if (error.code !== "USER_CANCEL") {
-          console.error("결제 호출 에러 상세:", error);
-          alert("결제 에러: " + (error.message || error.code || "알 수 없는 오류"));
+          console.error("결제 호출 에러:", error);
+          alert("결제 창 오류: " + (error.message || error.code || "알 수 없는 오류"));
         }
       }
     }
