@@ -2,12 +2,10 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <!-- 모바일 더블 탭 자동 확대 방지 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iPhone 계산기 (토스페이먼츠 연동)</title>
+  <title>iPhone 계산기</title>
   
-  <!-- 토스페이먼츠 SDK v1 -->
-  <script id="toss-sdk" src="https://js.tosspayments.com/v1/payment-js"></script>
-
   <style>
     * {
       box-sizing: border-box;
@@ -15,7 +13,7 @@
       padding: 0;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation; /* 더블 탭 확대 방지 */
+      touch-action: manipulation; /* CSS 더블 탭 확대 방지 */
     }
 
     body {
@@ -27,7 +25,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     }
 
-    /* 아이폰 계산기 프레임 */
+    /* 계산기 프레임 */
     .calculator {
       width: 340px;
       height: 580px;
@@ -118,6 +116,7 @@
     </div>
   </div>
 
+  <!-- 토스페이먼츠 SDK 동적 로드 -->
   <script>
     let currentInput = '0';
     let previousInput = null;
@@ -128,6 +127,22 @@
     const clearBtn = document.getElementById('btn-clear');
     const clientKey = "test_ck_D5148x91811e5m40A0a349R12482";
 
+    // 토스 SDK 객체 저장 변수
+    let tossPaymentsInstance = null;
+
+    // 페이지 시작 시 토스 SDK 동적 주입 및 초기화
+    (function loadTossSdk() {
+      const script = document.createElement('script');
+      script.src = "https://js.tosspayments.com/v1/payment-js";
+      script.onload = () => {
+        if (typeof TossPayments !== 'undefined') {
+          tossPaymentsInstance = TossPayments(clientKey);
+        }
+      };
+      document.head.appendChild(script);
+    })();
+
+    // 결제 성공 후 돌아왔을 때 처리
     window.addEventListener('load', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const isSuccess = urlParams.get('paymentSuccess');
@@ -237,38 +252,21 @@
       document.querySelectorAll('.operator').forEach(btn => btn.classList.remove('active'));
     }
 
-    // 동적 스크립트 로드 함수
-    function ensureSdkLoaded() {
-      return new Promise((resolve, reject) => {
-        if (typeof TossPayments !== 'undefined') {
-          resolve();
-          return;
-        }
-
-        const script = document.createElement('script');
-        script.src = "https://js.tosspayments.com/v1/payment-js";
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error("토스페이먼츠 CDN 접속 실패. 광고 차단 프로그램(AdBlock)을 해제했는지 확인해 주세요."));
-        document.head.appendChild(script);
-      });
-    }
-
-    async function onEqualPressed() {
+    // '=' 버튼 눌렀을 때 실행
+    function onEqualPressed() {
       if (!selectedOperator || previousInput === null) return;
 
+      // 1. 결과 미리 계산 후 저장
       const pendingResult = calculateInternal();
       localStorage.setItem('calc_result', pendingResult);
       clearActiveOperators();
 
-      try {
-        // SDK 로딩 동적 체크
-        await ensureSdkLoaded();
+      // 2. 결제 요청
+      const currentUrl = window.location.href.split('?')[0];
+      const randomOrderId = "ORDER_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
 
-        const tossPayments = TossPayments(clientKey);
-        const currentUrl = window.location.href.split('?')[0];
-        const randomOrderId = "ORDER_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-
-        tossPayments.requestPayment('카드', {
+      if (tossPaymentsInstance) {
+        tossPaymentsInstance.requestPayment('카드', {
           amount: 999000,
           orderId: randomOrderId,
           orderName: '계산 결과 열람 권한 (999,000원)',
@@ -277,11 +275,11 @@
           failUrl: currentUrl + '?paymentSuccess=false',
         }).catch(function (error) {
           if (error.code !== 'USER_CANCEL') {
-            alert('결제 오류: ' + error.message);
+            alert('결제 진행 실패: ' + error.message);
           }
         });
-      } catch (e) {
-        alert(e.message);
+      } else {
+        alert('결제 모듈을 로딩 중입니다. 1~2초 후 다시 = 버튼을 눌러주세요.');
       }
     }
   </script>
