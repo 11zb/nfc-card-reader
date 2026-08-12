@@ -2,12 +2,11 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <!-- 모바일 더블 탭 확대 방지 설정 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>iPhone 계산기 (토스페이먼츠 연동)</title>
   
-  <!-- 가장 검증되고 안정적인 토스페이먼츠 SDK v1 -->
-  <script src="https://js.tosspayments.com/v1/payment-js"></script>
+  <!-- 토스페이먼츠 SDK v1 -->
+  <script id="toss-sdk" src="https://js.tosspayments.com/v1/payment-js"></script>
 
   <style>
     * {
@@ -16,7 +15,7 @@
       padding: 0;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation; /* CSS 더블 탭 확대 방지 */
+      touch-action: manipulation; /* 더블 탭 확대 방지 */
     }
 
     body {
@@ -90,35 +89,29 @@
 </head>
 <body>
 
-  <!-- 계산기 메인 -->
   <div class="calculator">
     <div class="display" id="display">0</div>
     <div class="buttons">
-      <!-- 1열 -->
       <button class="btn btn-light-gray" id="btn-clear" onclick="handleClear()">AC</button>
       <button class="btn btn-light-gray" onclick="toggleSign()">+/–</button>
       <button class="btn btn-light-gray" onclick="handlePercent()">%</button>
       <button class="btn btn-orange operator" onclick="setOperator('÷', this)">÷</button>
 
-      <!-- 2열 -->
       <button class="btn btn-dark-gray" onclick="appendNumber('7')">7</button>
       <button class="btn btn-dark-gray" onclick="appendNumber('8')">8</button>
       <button class="btn btn-dark-gray" onclick="appendNumber('9')">9</button>
       <button class="btn btn-orange operator" onclick="setOperator('×', this)">×</button>
 
-      <!-- 3열 -->
       <button class="btn btn-dark-gray" onclick="appendNumber('4')">4</button>
       <button class="btn btn-dark-gray" onclick="appendNumber('5')">5</button>
       <button class="btn btn-dark-gray" onclick="appendNumber('6')">6</button>
       <button class="btn btn-orange operator" onclick="setOperator('–', this)">–</button>
 
-      <!-- 4열 -->
       <button class="btn btn-dark-gray" onclick="appendNumber('1')">1</button>
       <button class="btn btn-dark-gray" onclick="appendNumber('2')">2</button>
       <button class="btn btn-dark-gray" onclick="appendNumber('3')">3</button>
       <button class="btn btn-orange operator" onclick="setOperator('+', this)">+</button>
 
-      <!-- 5열 -->
       <button class="btn btn-dark-gray btn-zero" onclick="appendNumber('0')">0</button>
       <button class="btn btn-dark-gray" onclick="appendDecimal()">.</button>
       <button class="btn btn-orange" onclick="onEqualPressed()">=</button>
@@ -126,7 +119,6 @@
   </div>
 
   <script>
-    // --- 계산기 상태 변수 ---
     let currentInput = '0';
     let previousInput = null;
     let selectedOperator = null;
@@ -134,11 +126,8 @@
 
     const displayElement = document.getElementById('display');
     const clearBtn = document.getElementById('btn-clear');
-
-    // 토스페이먼츠 공식 테스트용 Client Key
     const clientKey = "test_ck_D5148x91811e5m40A0a349R12482";
 
-    // 페이지 로드 시 결제 성공 여부 체크
     window.addEventListener('load', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const isSuccess = urlParams.get('paymentSuccess');
@@ -152,7 +141,6 @@
       }
     });
 
-    // 디스플레이 화면 업데이트
     function updateDisplay() {
       let formatted = currentInput;
       if (currentInput !== 'Error') {
@@ -249,27 +237,37 @@
       document.querySelectorAll('.operator').forEach(btn => btn.classList.remove('active'));
     }
 
-    // '=' 버튼 클릭 시 결제창 호출
-    function onEqualPressed() {
+    // 동적 스크립트 로드 함수
+    function ensureSdkLoaded() {
+      return new Promise((resolve, reject) => {
+        if (typeof TossPayments !== 'undefined') {
+          resolve();
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = "https://js.tosspayments.com/v1/payment-js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("토스페이먼츠 CDN 접속 실패. 광고 차단 프로그램(AdBlock)을 해제했는지 확인해 주세요."));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function onEqualPressed() {
       if (!selectedOperator || previousInput === null) return;
 
-      // 1. 계산 결과 로컬스토리지에 저장
       const pendingResult = calculateInternal();
       localStorage.setItem('calc_result', pendingResult);
       clearActiveOperators();
 
-      // 2. 토스페이먼츠 SDK v1 결제창 호출
       try {
-        if (typeof TossPayments === 'undefined') {
-          alert("토스 SDK 로드 실패: 스크립트를 불러오지 못했습니다.");
-          return;
-        }
+        // SDK 로딩 동적 체크
+        await ensureSdkLoaded();
 
         const tossPayments = TossPayments(clientKey);
         const currentUrl = window.location.href.split('?')[0];
         const randomOrderId = "ORDER_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
 
-        // 카드, 가상계좌 등 전체 결제창 팝업
         tossPayments.requestPayment('카드', {
           amount: 999000,
           orderId: randomOrderId,
@@ -283,8 +281,7 @@
           }
         });
       } catch (e) {
-        console.error("결제 호출 오류:", e);
-        alert("결제창 실행 중 오류가 발생했습니다.");
+        alert(e.message);
       }
     }
   </script>
