@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>iPhone 계산기 (토스페이먼츠 결제 연동)</title>
-  <!-- 토스페이먼츠 결제위젯 V2 SDK -->
-  <script src="https://js.tosspayments.com/v2/payment-widget"></script>
+  <!-- 토스페이먼츠 결제위젯 V2 최신 SDK -->
+  <script src="https://js.tosspayments.com/v2/payment-widget/v2"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -76,7 +76,7 @@
     .btn-orange.active { background-color: #ffffff; color: #ff9f0a; }
     .btn-zero { grid-column: span 2; border-radius: 32px; justify-content: flex-start; padding-left: 26px; }
 
-    /* 결제 위젯 모달 레이어 */
+    /* 결제 모달 레이어 */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -91,9 +91,7 @@
       align-items: center;
     }
 
-    .modal-overlay.active {
-      display: flex;
-    }
+    .modal-overlay.active { display: flex; }
 
     .payment-card {
       background: #ffffff;
@@ -116,18 +114,8 @@
       border-bottom: 1px solid #eee;
     }
 
-    .payment-title {
-      font-size: 18px;
-      font-weight: bold;
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      color: #888;
-    }
+    .payment-title { font-size: 18px; font-weight: bold; }
+    .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
 
     .pay-submit-btn {
       width: 100%;
@@ -142,11 +130,7 @@
       margin-top: 10px;
     }
 
-    .loading-text {
-      text-align: center;
-      padding: 20px;
-      color: #666;
-    }
+    .loading-text { text-align: center; padding: 20px; color: #666; }
   </style>
 </head>
 <body>
@@ -329,9 +313,9 @@
 
       if (!isWidgetLoaded) {
         try {
+          // SDK 로드 확인 (TossPayments 인스턴스)
           if (typeof TossPayments === 'undefined') {
-            alert('토스페이먼츠 SDK 로드 실패. 인터넷 연결이나 로컬 서버(http://) 접속 상태를 확인하세요.');
-            return;
+            throw new Error("TossPayments SDK가 로드되지 않았습니다. 브라우저의 광고 차단 확장 프로그램을 해제해 보세요.");
           }
 
           const tossPayments = TossPayments(clientKey);
@@ -350,8 +334,8 @@
           document.getElementById('loading').style.display = 'none';
           isWidgetLoaded = true;
         } catch (err) {
-          console.error("위젯 로딩 실패:", err);
-          document.getElementById('loading').textContent = '결제 위젯 로딩 실패 (개발자 콘솔 F12 확인)';
+          console.error("위젯 로딩 에러:", err);
+          document.getElementById('loading').innerHTML = `<span style="color:red;">${err.message}</span>`;
         }
       }
     }
@@ -374,7 +358,7 @@
           failUrl: currentUrl + "?paymentSuccess=false",
         });
       } catch (error) {
-        console.error("결제 진행 실패:", error);
+        console.error("결제 요청 에러:", error);
       }
     }
   </script>
